@@ -1,0 +1,219 @@
+# ============================================================================
+# CERBERUS AUTONOMOUS AI ROVER — MASTER CONFIGURATION
+# Operation Ground Truth | Las Vegas, Nevada
+# ============================================================================
+
+system:
+  name: "Cerberus"
+  version: "0.1.0"
+  deployment_path: "/opt/cerberus"
+  log_level: "INFO"
+  log_dir: "data/logs"
+  log_max_bytes: 10485760
+  log_backup_count: 5
+
+database:
+  path: "data/cerberus.db"
+  journal_mode: "WAL"
+  busy_timeout_ms: 5000
+
+i2c:
+  bus: 1
+  scan_on_boot: true
+  devices:
+    ina3221: 0x40
+    pca9685: 0x41
+    sht45: 0x44
+    scd40: 0x62
+    bme680: 0x77
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  keepalive_seconds: 60
+  client_id: "cerberus-rover"
+  reconnect_min_delay: 1
+  reconnect_max_delay: 120
+  qos: 1
+  topics:
+    health: "cerberus/telemetry/health"
+    sensors: "cerberus/telemetry/sensors"
+    detections: "cerberus/detections"
+    mission_status: "cerberus/mission/status"
+    commands: "cerberus/command/#"
+    alerts: "cerberus/alerts"
+
+safety:
+  thermal_warning_c: 70
+  thermal_shutdown_c: 80
+  battery_warning_pct: 25
+  battery_critical_pct: 15
+  battery_shutdown_pct: 8
+  watchdog_interval_seconds: 5
+  max_motor_runtime_seconds: 300
+  ambient_temp_limit_c: 55
+
+power:
+  monitor: "INA3221"
+  channels:
+    battery:
+      channel: 1
+      nominal_voltage: 11.1
+      full_voltage: 12.6
+      empty_voltage: 9.0
+      max_current_a: 15.0
+    pi_rail:
+      channel: 2
+      nominal_voltage: 5.0
+      min_voltage: 4.75
+      max_voltage: 5.25
+      max_current_a: 5.0
+    motors:
+      channel: 3
+      max_current_a: 20.0
+      stall_current_a: 25.0
+      overcurrent_shutdown_a: 30.0
+  read_interval_seconds: 2
+
+motors:
+  driver: "BTS7960"
+  left:
+    pwm_pin: 12
+    forward_pin: 5
+    reverse_pin: 6
+  right:
+    pwm_pin: 13
+    forward_pin: 16
+    reverse_pin: 26
+  pwm_frequency: 1000
+  min_duty_cycle: 0.0
+  max_duty_cycle: 1.0
+  ramp_step: 0.05
+  ramp_interval_ms: 50
+  deadband: 0.1
+
+servos:
+  controller: "PCA9685"
+  i2c_address: 0x41
+  pwm_frequency: 50
+  channels:
+    pan: 0
+    tilt: 1
+    pest_decoy: 2
+    microclimate_arm: 3
+  limits:
+    pan:
+      min_angle: 0
+      max_angle: 180
+      center_angle: 90
+    tilt:
+      min_angle: 0
+      max_angle: 90
+      center_angle: 45
+    pest_decoy:
+      min_angle: 0
+      max_angle: 270
+      center_angle: 135
+    microclimate_arm:
+      min_angle: 0
+      max_angle: 180
+      center_angle: 0
+
+navigation:
+  gps_port: "/dev/ttyAMA0"
+  gps_baud: 9600
+  waypoint_radius_m: 2.0
+  heading_tolerance_deg: 15
+  max_speed: 0.7
+  turn_speed: 0.4
+  gps_timeout_seconds: 10
+
+camera:
+  resolution_width: 1920
+  resolution_height: 1080
+  framerate: 30
+  format: "RGB888"
+  rotation: 0
+  stream_port: 5000
+  stream_quality: 70
+  capture_dir: "data/captures"
+
+audio:
+  dac: "MAX98357A"
+  interface: "I2S"
+  pins:
+    bclk: 18
+    lrclk: 19
+    din: 21
+  sample_rate: 44100
+  volume_pct: 80
+  audio_dir: "data/audio"
+
+status_leds:
+  type: "WS2812B"
+  gpio_pin: 10
+  led_count: 8
+  brightness: 0.5
+  states:
+    boot: "white_pulse"
+    healthy: "green_solid"
+    warning: "yellow_pulse"
+    critical: "red_flash"
+    mission_active: "blue_solid"
+    rtb: "purple_pulse"
+    detection: "white_flash"
+    shutdown: "red_fade"
+
+sensors:
+  bme680:
+    enabled: false
+    i2c_address: 0x77
+    read_interval_seconds: 30
+  scd40:
+    enabled: false
+    i2c_address: 0x62
+    read_interval_seconds: 60
+  sht45:
+    enabled: false
+    i2c_address: 0x44
+    read_interval_seconds: 10
+  pir:
+    enabled: false
+    gpio_pin: 24
+    cooldown_seconds: 5
+
+intelligence:
+  model_dir: "models"
+  confidence_threshold: 0.65
+  inference_interval_seconds: 2
+  max_detections_per_frame: 10
+
+heads:
+  active_head: "none"
+  detection_method: "config"
+  ir_led_pin: 25
+  pest_led_eyes_pin: 23
+
+mission:
+  default_timeout_minutes: 60
+  rtb_on_timeout: true
+  rtb_on_low_battery: true
+  pause_on_comms_loss: false
+  home_lat: 0.0
+  home_lon: 0.0
+  patrol_speed: 0.5
+  grid_spacing_m: 3.0
+  grid_overlap_pct: 10
+
+network:
+  wifi_check_interval_seconds: 30
+  dashboard_sync_interval_seconds: 60
+  dashboard_host: ""
+  dashboard_port: 0
+  offline_queue_max_mb: 50
+
+health:
+  report_interval_seconds: 15
+  disk_warning_pct: 85
+  memory_warning_pct: 85
+  cpu_warning_pct: 90
