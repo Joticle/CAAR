@@ -1,0 +1,32 @@
+[Unit]
+Description=Cerberus Autonomous AI Rover
+After=network.target gpsd.service mosquitto.service
+Wants=gpsd.service mosquitto.service
+
+[Service]
+Type=simple
+User=cerberus
+Group=cerberus
+WorkingDirectory=/opt/cerberus
+ExecStart=/opt/cerberus/venv/bin/python -m cerberus.core.brain
+Restart=on-failure
+RestartSec=10
+WatchdogSec=120
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cerberus
+
+Environment=PYTHONUNBUFFERED=1
+Environment=CERBERUS_ENV=production
+Environment=CERBERUS_CONFIG=/opt/cerberus/config/cerberus.yaml
+
+SupplementaryGroups=gpio i2c spi video audio dialout
+
+ProtectSystem=strict
+ReadWritePaths=/opt/cerberus/data
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

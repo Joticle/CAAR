@@ -1,0 +1,6 @@
+# Default
+* text=auto
+
+# Force LF for Linux scripts
+*.sh text eol=lf
+*.service text eol=lf

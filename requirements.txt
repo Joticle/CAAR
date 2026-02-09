@@ -1,14 +1,21 @@
-blinker==1.9.0
-click==8.3.1
-colorama==0.4.6
-Flask==3.1.2
-itsdangerous==2.2.0
-Jinja2==3.1.6
-MarkupSafe==3.0.3
-numpy==2.4.2
-opencv-python-headless==4.13.0.92
-paho-mqtt==2.1.0
-pillow==12.1.0
-psutil==7.2.2
-PyYAML==6.0.3
-Werkzeug==3.1.5
+# Cerberus Autonomous AI Rover — Python Dependencies
+# Core (all environments)
+pyyaml>=6.0
+paho-mqtt>=1.6.1
+flask>=3.0
+opencv-python-headless>=4.8
+numpy>=1.24
+Pillow>=10.0
+psutil>=5.9
+
+# Pi-only (install on rover, not dev PC)
+# gpiozero>=2.0
+# lgpio>=0.2
+# picamera2>=0.3
+# tflite-runtime>=2.14
+# gpsd-py3>=0.3
+# adafruit-circuitpython-bme680>=3.4
+# adafruit-circuitpython-scd4x>=1.3
+# adafruit-circuitpython-sht4x>=1.0
+# smbus2>=0.4
+# birdnetlib>=0.5

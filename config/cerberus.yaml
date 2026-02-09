@@ -1,219 +1,409 @@
 # ============================================================================
-# CERBERUS AUTONOMOUS AI ROVER — MASTER CONFIGURATION
-# Operation Ground Truth | Las Vegas, Nevada
+# CERBERUS MASTER CONFIGURATION
+# Autonomous AI Rover — Operation Ground Truth
+# ============================================================================
+# All hardware definitions, GPIO pins, I2C addresses, thresholds,
+# and system parameters. No magic numbers in code — everything here.
 # ============================================================================
 
 system:
   name: "Cerberus"
-  version: "0.1.0"
-  deployment_path: "/opt/cerberus"
-  log_level: "INFO"
-  log_dir: "data/logs"
-  log_max_bytes: 10485760
+  version: "1.0.0"
+  environment: "development"    # development | production
+  log_level: "INFO"             # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  log_file: "data/cerberus.log"
+  log_max_bytes: 10485760       # 10MB
   log_backup_count: 5
+  heartbeat_interval: 10.0      # seconds between heartbeat publishes
+  main_loop_interval: 1.0       # seconds between brain loop iterations
 
+# ============================================================================
+# DATABASE
+# ============================================================================
 database:
   path: "data/cerberus.db"
-  journal_mode: "WAL"
+  wal_mode: true
   busy_timeout_ms: 5000
+  journal_size_limit: 67108864  # 64MB
+  auto_vacuum: true
+  backup_interval_hours: 24
+  max_log_age_days: 30
 
-i2c:
-  bus: 1
-  scan_on_boot: true
-  devices:
-    ina3221: 0x40
-    pca9685: 0x41
-    sht45: 0x44
-    scd40: 0x62
-    bme680: 0x77
-
+# ============================================================================
+# MQTT
+# ============================================================================
 mqtt:
-  broker_host: "localhost"
-  broker_port: 1883
-  keepalive_seconds: 60
+  broker: "localhost"
+  port: 1883
+  keepalive: 60
   client_id: "cerberus-rover"
-  reconnect_min_delay: 1
-  reconnect_max_delay: 120
+  username: ""
+  password: ""
   qos: 1
+  retain: false
+  reconnect_delay: 5.0
+  max_reconnect_delay: 60.0
   topics:
-    health: "cerberus/telemetry/health"
-    sensors: "cerberus/telemetry/sensors"
+    telemetry_health: "cerberus/telemetry/health"
+    telemetry_sensors: "cerberus/telemetry/sensors"
     detections: "cerberus/detections"
     mission_status: "cerberus/mission/status"
-    commands: "cerberus/command/#"
+    command: "cerberus/command/#"
     alerts: "cerberus/alerts"
 
-safety:
-  thermal_warning_c: 70
-  thermal_shutdown_c: 80
-  battery_warning_pct: 25
-  battery_critical_pct: 15
-  battery_shutdown_pct: 8
-  watchdog_interval_seconds: 5
-  max_motor_runtime_seconds: 300
-  ambient_temp_limit_c: 55
+# ============================================================================
+# HEALTH MONITORING
+# ============================================================================
+health:
+  poll_interval: 5.0            # seconds between health checks
+  cpu_warn_pct: 80.0
+  cpu_critical_pct: 95.0
+  memory_warn_pct: 80.0
+  memory_critical_pct: 95.0
+  disk_warn_pct: 85.0
+  disk_critical_pct: 95.0
+  temp_warn_c: 70.0             # Pi 5 CPU temperature
+  temp_critical_c: 80.0
+  temp_shutdown_c: 85.0
 
+# ============================================================================
+# SAFETY WATCHDOG
+# ============================================================================
+safety:
+  poll_interval: 2.0
+  battery_warn_pct: 25.0
+  battery_critical_pct: 15.0
+  battery_shutdown_pct: 10.0
+  thermal_warn_c: 70.0
+  thermal_critical_c: 80.0
+  thermal_shutdown_c: 85.0
+  motor_overcurrent_a: 10.0
+  watchdog_timeout: 30.0
+  safe_mode_on_error: true
+
+# ============================================================================
+# POWER MONITORING — INA3221
+# ============================================================================
 power:
-  monitor: "INA3221"
+  i2c_address: 0x40
+  i2c_bus: 1
   channels:
     battery:
-      channel: 1
-      nominal_voltage: 11.1
-      full_voltage: 12.6
-      empty_voltage: 9.0
-      max_current_a: 15.0
-    pi_rail:
-      channel: 2
-      nominal_voltage: 5.0
-      min_voltage: 4.75
-      max_voltage: 5.25
-      max_current_a: 5.0
+      channel: 0
+      shunt_resistance_ohms: 0.1
+      voltage_min: 9.6            # 3S low cutoff (3.2V/cell)
+      voltage_max: 12.6           # 3S full charge (4.2V/cell)
+      voltage_nominal: 11.1       # 3S nominal (3.7V/cell)
     motors:
-      channel: 3
-      max_current_a: 20.0
-      stall_current_a: 25.0
-      overcurrent_shutdown_a: 30.0
-  read_interval_seconds: 2
+      channel: 1
+      shunt_resistance_ohms: 0.1
+      overcurrent_a: 10.0
+    accessories:
+      channel: 2
+      shunt_resistance_ohms: 0.1
+      overcurrent_a: 3.0
 
+# ============================================================================
+# MOTORS — BTS7960 DUAL H-BRIDGE
+# ============================================================================
 motors:
-  driver: "BTS7960"
   left:
-    pwm_pin: 12
-    forward_pin: 5
-    reverse_pin: 6
+    pwm_pin: 12                 # GPIO12 (PWM0) — left side speed
+    forward_pin: 5              # GPIO5 — left forward enable
+    reverse_pin: 6              # GPIO6 — left reverse enable
   right:
-    pwm_pin: 13
-    forward_pin: 16
-    reverse_pin: 26
-  pwm_frequency: 1000
-  min_duty_cycle: 0.0
-  max_duty_cycle: 1.0
-  ramp_step: 0.05
+    pwm_pin: 13                 # GPIO13 (PWM1) — right side speed
+    forward_pin: 16             # GPIO16 — right forward enable
+    reverse_pin: 26             # GPIO26 — right reverse enable
+  frequency_hz: 1000
+  min_duty_pct: 10.0
+  max_duty_pct: 100.0
+  deadband_pct: 5.0
+  ramp_step_pct: 5.0
   ramp_interval_ms: 50
-  deadband: 0.1
+  emergency_stop_pin: 25        # GPIO25 — hardware E-stop input (active low)
 
-servos:
-  controller: "PCA9685"
-  i2c_address: 0x41
-  pwm_frequency: 50
-  channels:
-    pan: 0
-    tilt: 1
-    pest_decoy: 2
-    microclimate_arm: 3
-  limits:
-    pan:
-      min_angle: 0
-      max_angle: 180
-      center_angle: 90
-    tilt:
-      min_angle: 0
-      max_angle: 90
-      center_angle: 45
-    pest_decoy:
-      min_angle: 0
-      max_angle: 270
-      center_angle: 135
-    microclimate_arm:
-      min_angle: 0
-      max_angle: 180
-      center_angle: 0
-
-navigation:
-  gps_port: "/dev/ttyAMA0"
-  gps_baud: 9600
-  waypoint_radius_m: 2.0
-  heading_tolerance_deg: 15
-  max_speed: 0.7
+# ============================================================================
+# DRIVE CONTROLLER
+# ============================================================================
+drive:
+  default_speed: 0.5            # 0.0-1.0 normalized
   turn_speed: 0.4
-  gps_timeout_seconds: 10
+  spin_speed: 0.3
+  max_speed: 1.0
+  min_turn_radius: 0.3          # minimum normalized turn value
+  acceleration_limit: 0.1       # max speed change per cycle
 
+# ============================================================================
+# NAVIGATION
+# ============================================================================
+navigation:
+  home_lat: 36.1699
+  home_lon: -115.1398
+  home_radius_m: 1.5
+  waypoint_default_radius_m: 2.0
+  heading_tolerance_deg: 15.0
+  spin_threshold_deg: 90.0
+  gps_timeout_seconds: 10.0
+  min_speed_for_heading: 0.2
+  position_history_size: 10
+  rtb_approach_speed: 0.3
+  rtb_cruise_speed: 0.5
+  rtb_max_retries: 3
+  rtb_retry_delay_seconds: 10.0
+  rtb_gps_wait_timeout: 60.0
+
+# ============================================================================
+# GPS — u-blox NEO-6M
+# ============================================================================
+gps:
+  enabled: true
+  host: "127.0.0.1"
+  port: 2947
+  poll_interval: 1.0
+  min_satellites: 4
+  max_hdop: 5.0
+  simulation:
+    enabled: false
+    lat: 36.1699
+    lon: -115.1398
+    alt_m: 620.0
+
+# ============================================================================
+# CAMERA — Pi Camera 3
+# ============================================================================
 camera:
-  resolution_width: 1920
-  resolution_height: 1080
+  enabled: true
+  still_width: 4608
+  still_height: 2592
+  stream_width: 1280
+  stream_height: 720
+  inference_width: 640
+  inference_height: 480
   framerate: 30
-  format: "RGB888"
-  rotation: 0
-  stream_port: 5000
-  stream_quality: 70
-  capture_dir: "data/captures"
+  format: "BGR888"
+  hflip: false
+  vflip: false
+  auto_exposure: true
+  jpeg_quality: 85
 
+# ============================================================================
+# STREAMING — MJPEG
+# ============================================================================
+streaming:
+  enabled: true
+  host: "0.0.0.0"
+  port: 8080
+  framerate: 15
+  jpeg_quality: 70
+
+# ============================================================================
+# SERVOS — PCA9685
+# ============================================================================
+servos:
+  i2c_address: 0x40
+  i2c_bus: 1
+  frequency_hz: 50
+  channels:
+    pan:
+      channel: 0
+      min_pulse_us: 500
+      max_pulse_us: 2500
+      default_angle: 90.0
+      min_angle: 0.0
+      max_angle: 180.0
+    tilt:
+      channel: 1
+      min_pulse_us: 500
+      max_pulse_us: 2500
+      default_angle: 90.0
+      min_angle: 30.0
+      max_angle: 150.0
+    decoy_pan:
+      channel: 2
+      min_pulse_us: 500
+      max_pulse_us: 2500
+      default_angle: 90.0
+      min_angle: 0.0
+      max_angle: 180.0
+    decoy_tilt:
+      channel: 3
+      min_pulse_us: 500
+      max_pulse_us: 2500
+      default_angle: 90.0
+      min_angle: 60.0
+      max_angle: 120.0
+    probe_arm:
+      channel: 4
+      min_pulse_us: 500
+      max_pulse_us: 2500
+      default_angle: 0.0
+      min_angle: 0.0
+      max_angle: 90.0
+
+# ============================================================================
+# LEDS — NeoPixel Status Ring
+# ============================================================================
+leds:
+  status:
+    pin: 18                     # GPIO18 (PWM)
+    count: 12
+    brightness: 0.3
+    order: "GRB"
+  ir:
+    pin: 23                     # GPIO23
+    enabled: true
+  pest_eyes:
+    pin: 24                     # GPIO24
+    enabled: true
+
+# ============================================================================
+# AUDIO — MAX98357A I2S Amplifier
+# ============================================================================
 audio:
-  dac: "MAX98357A"
-  interface: "I2S"
-  pins:
-    bclk: 18
-    lrclk: 19
-    din: 21
-  sample_rate: 44100
-  volume_pct: 80
-  audio_dir: "data/audio"
+  enabled: true
+  device: "default"
+  sample_rate: 48000
+  channels: 1
+  volume: 0.7
+  predator_audio_path: "data/audio/predator"
 
-status_leds:
-  type: "WS2812B"
-  gpio_pin: 10
-  led_count: 8
-  brightness: 0.5
-  states:
-    boot: "white_pulse"
-    healthy: "green_solid"
-    warning: "yellow_pulse"
-    critical: "red_flash"
-    mission_active: "blue_solid"
-    rtb: "purple_pulse"
-    detection: "white_flash"
-    shutdown: "red_fade"
-
+# ============================================================================
+# ENVIRONMENTAL SENSORS
+# ============================================================================
 sensors:
   bme680:
-    enabled: false
+    enabled: true
     i2c_address: 0x77
-    read_interval_seconds: 30
+    i2c_bus: 1
+    poll_interval: 10.0
+    gas_heater_temp: 320
+    gas_heater_duration: 150
   scd40:
-    enabled: false
+    enabled: true
     i2c_address: 0x62
-    read_interval_seconds: 60
+    i2c_bus: 1
+    poll_interval: 30.0
+    altitude_compensation_m: 620
+    temperature_offset_c: 0.0
   sht45:
-    enabled: false
+    enabled: true
     i2c_address: 0x44
-    read_interval_seconds: 10
-  pir:
-    enabled: false
-    gpio_pin: 24
-    cooldown_seconds: 5
+    i2c_bus: 1
+    poll_interval: 5.0
+    precision: "high"
 
+# ============================================================================
+# INTELLIGENCE — AI/ML
+# ============================================================================
 intelligence:
-  model_dir: "models"
-  confidence_threshold: 0.65
-  inference_interval_seconds: 2
-  max_detections_per_frame: 10
+  models_dir: "models"
+  default_threshold: 0.5
+  motion:
+    min_area: 500
+    threshold: 25
+    blur_size: 21
+    history: 500
+    var_threshold: 40.0
+    detect_shadows: true
+    dilate_iterations: 3
+    erode_iterations: 1
+    cooldown_seconds: 2.0
+    max_regions: 20
+    motion_pct_threshold: 0.5
+  species:
+    audio_min_confidence: 0.25
+    sample_rate: 48000
+    visual_model: "wildlife_classifier"
+    visual_model_file: "wildlife_classifier.tflite"
+    visual_labels_file: "wildlife_labels.txt"
+    visual_min_confidence: 0.4
 
-heads:
-  active_head: "none"
-  detection_method: "config"
-  ir_led_pin: 25
-  pest_led_eyes_pin: 23
-
+# ============================================================================
+# MISSION & AUTONOMY
+# ============================================================================
 mission:
-  default_timeout_minutes: 60
-  rtb_on_timeout: true
-  rtb_on_low_battery: true
-  pause_on_comms_loss: false
-  home_lat: 0.0
-  home_lon: 0.0
-  patrol_speed: 0.5
-  grid_spacing_m: 3.0
-  grid_overlap_pct: 10
+  missions_dir: "config/missions"
+  max_duration_minutes: 60
+  patrol_dwell_seconds: 10.0
+  patrol_speed: 0.4
+  grid_spacing_m: 2.0
+  grid_speed: 0.3
 
-network:
-  wifi_check_interval_seconds: 30
-  dashboard_sync_interval_seconds: 60
-  dashboard_host: ""
-  dashboard_port: 0
-  offline_queue_max_mb: 50
+# ============================================================================
+# PAYLOAD HEADS
+# ============================================================================
+heads:
+  weed_scanner:
+    cycle_interval: 2.0
+    model_name: "weed_detector"
+    model_file: "weed_detector.tflite"
+    labels_file: "weed_labels.txt"
+    confidence_threshold: 0.6
+    save_detection_images: true
+    save_path: "data/weed_detections"
+    scan_positions:
+      - pan: 0.0
+        tilt: -30.0
+      - pan: -45.0
+        tilt: -30.0
+      - pan: 45.0
+        tilt: -30.0
 
-health:
-  report_interval_seconds: 15
-  disk_warning_pct: 85
-  memory_warning_pct: 85
-  cpu_warning_pct: 90
+  surveillance:
+    cycle_interval: 0.2
+    model_name: "threat_classifier"
+    model_file: "threat_classifier.tflite"
+    labels_file: "threat_labels.txt"
+    confidence_threshold: 0.5
+    save_evidence: true
+    save_all_motion: false
+    save_path: "data/surveillance"
+    alert_cooldown_seconds: 30.0
+    ir_leds_enabled: true
+
+  env_logger:
+    cycle_interval: 60.0
+    log_interval_seconds: 60.0
+    trend_interval_seconds: 3600.0
+    trend_window_samples: 60
+    alert_temp_high_c: 45.0
+    alert_temp_low_c: 0.0
+    alert_co2_high_ppm: 2000.0
+    alert_humidity_high_pct: 85.0
+
+  pest_deterrent:
+    cycle_interval: 0.5
+    model_name: "wildlife_classifier"
+    model_file: "wildlife_classifier.tflite"
+    labels_file: "wildlife_labels.txt"
+    confidence_threshold: 0.5
+    audio_path: "data/audio/predator"
+    save_path: "data/pest_detections"
+    effectiveness_window_seconds: 30.0
+    cooldown_seconds: 15.0
+    decoy_pan_range: [-60.0, 60.0]
+    decoy_tilt_range: [-20.0, 20.0]
+
+  bird_watcher:
+    cycle_interval: 1.0
+    model_name: "bird_classifier"
+    model_file: "bird_classifier.tflite"
+    labels_file: "bird_labels.txt"
+    confidence_threshold: 0.5
+    photo_path: "data/bird_photos"
+    audio_record_interval_seconds: 300.0
+    audio_record_duration_seconds: 15.0
+    sighting_cooldown_seconds: 60.0
+    max_locations_per_species: 50
+
+  microclimate:
+    cycle_interval: 5.0
+    probe_height_cm: 5.0
+    stabilization_seconds: 3.0
+    samples_per_point: 5
+    sample_interval_seconds: 1.0
+    hotspot_threshold_c: 3.0
+    coldspot_threshold_c: -3.0
+    moisture_threshold_pct: 15.0
+    save_path: "data/microclimate"
