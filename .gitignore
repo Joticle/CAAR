@@ -1,9 +1,48 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-.env
-data/
-models/
-*.db
-*.sqlite
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+
+# IDE
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Runtime Data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.log
+data/weed_detections/
+data/surveillance/
+data/pest_detections/
+data/bird_photos/
+data/microclimate/
+data/audio/
+
+# Models (large binary files)
+models/*.tflite
+models/*.onnx
+models/*.pb
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Keep directory structure
+!data/.gitkeep
+!models/.gitkeep
+!tests/.gitkeep
