@@ -138,8 +138,8 @@ drive:
 # NAVIGATION
 # ============================================================================
 navigation:
-  home_lat: 36.1699
-  home_lon: -115.1398
+  home_lat: 36.0828
+  home_lon: -115.1728
   home_radius_m: 1.5
   waypoint_default_radius_m: 2.0
   heading_tolerance_deg: 15.0
