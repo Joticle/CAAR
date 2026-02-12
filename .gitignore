@@ -46,3 +46,10 @@ desktop.ini
 !data/.gitkeep
 !models/.gitkeep
 !tests/.gitkeep
+
+# Local config overrides (contains real GPS coords, MQTT creds)
+config/local.yaml
+
+# Environment files
+.env
+*.env

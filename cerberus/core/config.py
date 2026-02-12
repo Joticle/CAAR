@@ -1,6 +1,7 @@
 """
 Cerberus Configuration Loader
-Reads cerberus.yaml and provides typed, validated access to all config values.
+Reads cerberus.yaml, merges config/local.yaml overrides,
+and provides typed, validated access to all config values.
 Singleton pattern ensures one config instance across all subsystems.
 """
 
@@ -29,8 +30,8 @@ class ConfigError(Exception):
 class CerberusConfig:
     """
     Singleton configuration manager for Cerberus.
-    Loads YAML config, validates required sections, and provides
-    safe access to nested values with defaults.
+    Loads YAML config, merges local overrides, validates required sections,
+    and provides safe access to nested values with defaults.
     """
 
     _instance: Optional["CerberusConfig"] = None
@@ -55,6 +56,7 @@ class CerberusConfig:
         self._config_path: str = config_path or _DEFAULT_CONFIG_PATH
         self._data: dict[str, Any] = {}
         self._load()
+        self._merge_local()
         self._validate()
         self._resolve_paths()
 
@@ -83,6 +85,38 @@ class CerberusConfig:
             raise ConfigError("Config file must contain a YAML mapping at the root level")
 
         self._data = raw
+
+    def _merge_local(self) -> None:
+        """Merge config/local.yaml overrides on top of base config if it exists."""
+        local_path: Path = Path(self._config_path).parent / "local.yaml"
+
+        if not local_path.exists():
+            return
+
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                local_data: Any = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            logger.warning("Failed to parse local.yaml, skipping overrides: %s", e)
+            return
+        except OSError as e:
+            logger.warning("Cannot read local.yaml, skipping overrides: %s", e)
+            return
+
+        if not isinstance(local_data, dict):
+            logger.warning("local.yaml must be a YAML mapping, skipping overrides")
+            return
+
+        self._deep_merge(self._data, local_data)
+        logger.info("Local config overrides merged from %s", local_path)
+
+    def _deep_merge(self, base: dict[str, Any], override: dict[str, Any]) -> None:
+        """Recursively merge override dict into base dict. Override wins on conflicts."""
+        for key, value in override.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                self._deep_merge(base[key], value)
+            else:
+                base[key] = value
 
     def _validate(self) -> None:
         """Ensure all required top-level sections exist."""
