@@ -1,0 +1,83 @@
+# Example Patrol Mission — Cerberus
+# Backyard perimeter patrol with scanning at each waypoint.
+# Coordinates are placeholder — replace with your property GPS points.
+
+name: "backyard_perimeter"
+description: "Perimeter patrol of the backyard with surveillance scanning"
+head: "surveillance"
+priority: 5
+repeat: true
+max_repeats: 3
+max_duration_minutes: 30
+require_gps: true
+require_camera: true
+
+tasks:
+  - type: navigate
+    name: "front_gate"
+    lat: 36.16990
+    lon: -115.13980
+    radius_m: 2.0
+    speed: 0.4
+    action: scan
+
+  - type: station_keep
+    name: "front_gate_scan"
+    lat: 36.16990
+    lon: -115.13980
+    duration: 15
+    action: scan
+
+  - type: navigate
+    name: "east_fence"
+    lat: 36.16995
+    lon: -115.13970
+    radius_m: 2.0
+    speed: 0.4
+    action: scan
+
+  - type: station_keep
+    name: "east_fence_scan"
+    lat: 36.16995
+    lon: -115.13970
+    duration: 15
+    action: scan
+
+  - type: navigate
+    name: "back_corner"
+    lat: 36.17000
+    lon: -115.13975
+    radius_m: 2.0
+    speed: 0.4
+    action: scan
+
+  - type: station_keep
+    name: "back_corner_scan"
+    lat: 36.17000
+    lon: -115.13975
+    duration: 20
+    action: scan
+
+  - type: navigate
+    name: "west_fence"
+    lat: 36.16995
+    lon: -115.13985
+    radius_m: 2.0
+    speed: 0.4
+    action: scan
+
+  - type: station_keep
+    name: "west_fence_scan"
+    lat: 36.16995
+    lon: -115.13985
+    duration: 15
+    action: scan
+
+  - type: rtb
+    name: "return_home"
+    speed: 0.5
+
+metadata:
+  created_by: "Scott"
+  created_date: "2026-02-08"
+  notes: "Replace coordinates with actual property GPS waypoints"

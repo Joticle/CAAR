@@ -691,8 +691,8 @@ gpsmon
 gps:
   simulation:
     enabled: true     # Set to true for indoor testing
-    lat: 36.1699
-    lon: -115.1398
+    lat: 36.1716
+    lon: -115.1391
 ```
 
 ### 8.3 — Ultrasonic Sensors (HC-SR04)

@@ -1,0 +1,16 @@
+2026-02-08 22:42:52 | cerberus.core.logger      | INFO     | Logging initialized — level=INFO, dir=C:\Dev\CAAR\data/logs
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'left' — gpiozero not available, running in simulation mode
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | INFO     | Motor driver 'left' created — PWM=GPIO12, FWD=GPIO5, REV=GPIO6, freq=1000Hz
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'right' — gpiozero not available, running in simulation mode
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | INFO     | Motor driver 'right' created — PWM=GPIO13, FWD=GPIO16, REV=GPIO26, freq=1000Hz
+2026-02-08 22:42:52 | cerberus.mobility.drive_controller | INFO     | Drive controller initialized — 6WD skid-steer
+2026-02-08 22:42:52 | cerberus.mobility.drive_controller | INFO     | Throttle limit changed: 100% → 50%
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'left' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'right' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.drive_controller | WARNING  | Drive: EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'left' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'right' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.drive_controller | WARNING  | Drive: EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'left' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.motor_driver | WARNING  | Motor 'right' EMERGENCY STOP
+2026-02-08 22:42:52 | cerberus.mobility.drive_controller | INFO     | Drive controller resources released
