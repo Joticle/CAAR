@@ -38,10 +38,10 @@ class CerberusConfig:
     _initialized: bool = False
 
     REQUIRED_SECTIONS: list[str] = [
-        "system", "database", "i2c", "mqtt", "safety",
+        "system", "database", "mqtt", "safety",
         "power", "motors", "servos", "navigation", "camera",
-        "audio", "status_leds", "sensors", "intelligence",
-        "heads", "mission", "network", "health"
+        "audio", "leds", "sensors", "intelligence",
+        "heads", "mission", "health"
     ]
 
     def __new__(cls, config_path: Optional[str] = None) -> "CerberusConfig":
@@ -235,8 +235,8 @@ class CerberusConfig:
         return self.section("audio")
 
     @property
-    def status_leds(self) -> dict[str, Any]:
-        return self.section("status_leds")
+    def leds(self) -> dict[str, Any]:
+        return self.section("leds")
 
     @property
     def sensors(self) -> dict[str, Any]:

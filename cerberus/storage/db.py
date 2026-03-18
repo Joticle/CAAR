@@ -73,7 +73,7 @@ class CerberusDB:
             try:
                 conn = sqlite3.connect(self._db_path, timeout=self._busy_timeout / 1000)
                 conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA busy_timeout = ?", (self._busy_timeout,))
+                conn.execute(f"PRAGMA busy_timeout = {int(self._busy_timeout)}")
                 conn.execute(f"PRAGMA journal_mode = {self._journal_mode}")
                 conn.execute("PRAGMA foreign_keys = ON")
                 conn.execute("PRAGMA synchronous = NORMAL")
