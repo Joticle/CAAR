@@ -130,7 +130,7 @@ class MotionDetector:
 
         fg_mask: np.ndarray = self._bg_subtractor.apply(blurred)
 
-        _, thresh: np.ndarray = cv2.threshold(fg_mask, self._threshold, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(fg_mask, self._threshold, 255, cv2.THRESH_BINARY)
 
         dilated: np.ndarray = cv2.dilate(
             thresh, self._kernel_dilate, iterations=self._dilate_iterations
