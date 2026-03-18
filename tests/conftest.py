@@ -138,7 +138,7 @@ MINIMAL_CONFIG: dict[str, Any] = {
         "volume": 0.7,
         "audio_dir": "data/audio/predator"
     },
-    "status_leds": {
+    "leds": {
         "pin": 18,
         "count": 12,
         "brightness": 0.3,
