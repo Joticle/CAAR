@@ -61,13 +61,11 @@ class CerberusDB:
         logger.info("Database initialized at %s (journal=%s)", self._db_path, self._journal_mode)
 
     def _ensure_directory(self) -> None:
-        """Create the database directory if it doesn't exist."""
         db_dir: str = os.path.dirname(self._db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get or create a thread-local database connection."""
         conn: Optional[sqlite3.Connection] = getattr(self._local, "connection", None)
         if conn is None:
             try:
@@ -84,7 +82,6 @@ class CerberusDB:
 
     @contextmanager
     def _transaction(self):
-        """Context manager for write operations with automatic commit/rollback."""
         conn: sqlite3.Connection = self._get_connection()
         with self._write_lock:
             try:
@@ -97,19 +94,24 @@ class CerberusDB:
                 conn.rollback()
                 raise
 
+    @contextmanager
+    def transaction(self):
+        """Public transaction context manager."""
+        with self._transaction() as conn:
+            yield conn
+
     def _init_schema(self) -> None:
-        """Create all tables if they don't exist. Idempotent."""
         schema: str = """
-            -- =============================================================
-            -- HEALTH MONITORING
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS health_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
                 cpu_temp_c REAL,
                 cpu_usage_pct REAL,
+                cpu_pct REAL,
                 memory_usage_pct REAL,
+                memory_pct REAL,
                 disk_usage_pct REAL,
+                disk_pct REAL,
                 battery_voltage REAL,
                 battery_current_a REAL,
                 battery_pct REAL,
@@ -123,9 +125,6 @@ class CerberusDB:
                 uptime_seconds REAL
             );
 
-            -- =============================================================
-            -- ENVIRONMENTAL SENSOR READINGS
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS sensor_readings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -143,9 +142,6 @@ class CerberusDB:
                 gps_lon REAL
             );
 
-            -- =============================================================
-            -- AI DETECTIONS (all heads)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS detections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -161,9 +157,6 @@ class CerberusDB:
                 metadata TEXT
             );
 
-            -- =============================================================
-            -- SPECIES SIGHTINGS (bird watcher)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS species_sightings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -180,9 +173,6 @@ class CerberusDB:
                 notes TEXT
             );
 
-            -- =============================================================
-            -- SPECIES CATALOG (aggregated bird/wildlife stats)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS species_catalog (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 species TEXT NOT NULL UNIQUE,
@@ -196,9 +186,6 @@ class CerberusDB:
                 last_seen TEXT
             );
 
-            -- =============================================================
-            -- PEST BEHAVIOR (adaptive deterrent learning)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS pest_behavior (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 species TEXT NOT NULL UNIQUE,
@@ -213,9 +200,6 @@ class CerberusDB:
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
-            -- =============================================================
-            -- PEST EVENTS (individual deterrent actions)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS pest_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -229,9 +213,6 @@ class CerberusDB:
                 image_path TEXT
             );
 
-            -- =============================================================
-            -- WEED DETECTIONS (geotag + classification)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS weed_detections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -241,16 +222,16 @@ class CerberusDB:
                 gps_lat REAL NOT NULL,
                 gps_lon REAL NOT NULL,
                 gps_hdop REAL,
+                hdop REAL,
                 scan_position_pan REAL,
                 scan_position_tilt REAL,
+                scan_pan REAL,
+                scan_tilt REAL,
                 grid_row INTEGER,
                 grid_col INTEGER,
                 verified INTEGER DEFAULT 0
             );
 
-            -- =============================================================
-            -- SURVEILLANCE EVENTS (motion + threat)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS surveillance_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -265,9 +246,6 @@ class CerberusDB:
                 gps_lon REAL
             );
 
-            -- =============================================================
-            -- MICROCLIMATE READINGS (grid-point measurements)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS microclimate_readings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -285,9 +263,6 @@ class CerberusDB:
                 probe_height_cm REAL
             );
 
-            -- =============================================================
-            -- MICROCLIMATE SURVEYS (completed survey summaries)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS microclimate_surveys (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -298,20 +273,24 @@ class CerberusDB:
                 grid_cols INTEGER,
                 temp_min REAL,
                 temp_max REAL,
+                temp_min_c REAL,
+                temp_max_c REAL,
                 temp_avg REAL,
+                temp_avg_c REAL,
                 temp_stdev REAL,
+                temp_stdev_c REAL,
                 humidity_min REAL,
                 humidity_max REAL,
+                humidity_min_pct REAL,
+                humidity_max_pct REAL,
                 humidity_avg REAL,
+                humidity_avg_pct REAL,
                 hotspot_count INTEGER DEFAULT 0,
                 coldspot_count INTEGER DEFAULT 0,
                 moisture_zone_count INTEGER DEFAULT 0,
                 heatmap_data TEXT
             );
 
-            -- =============================================================
-            -- NAVIGATION LOG (waypoint arrivals, route events)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS navigation_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -328,9 +307,6 @@ class CerberusDB:
                 message TEXT
             );
 
-            -- =============================================================
-            -- MISSION EVENTS (lifecycle + task tracking)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS mission_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -346,9 +322,6 @@ class CerberusDB:
                 metadata TEXT
             );
 
-            -- =============================================================
-            -- PATROL LOG (route execution tracking)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS patrol_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -364,9 +337,6 @@ class CerberusDB:
                 message TEXT
             );
 
-            -- =============================================================
-            -- OCCUPANCY GRID (path planning obstacle map)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS occupancy_grid (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 grid_x INTEGER NOT NULL,
@@ -380,9 +350,6 @@ class CerberusDB:
                 UNIQUE(grid_x, grid_y)
             );
 
-            -- =============================================================
-            -- RTB EVENTS (return to base history)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS rtb_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -399,9 +366,6 @@ class CerberusDB:
                 message TEXT
             );
 
-            -- =============================================================
-            -- SYSTEM EVENTS (boot, shutdown, errors, safety)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS system_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -412,9 +376,6 @@ class CerberusDB:
                 metadata TEXT
             );
 
-            -- =============================================================
-            -- CONFIDENCE TRACKING (model performance calibration)
-            -- =============================================================
             CREATE TABLE IF NOT EXISTS confidence_tracking (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -426,9 +387,6 @@ class CerberusDB:
                 notes TEXT
             );
 
-            -- =============================================================
-            -- INDEXES
-            -- =============================================================
             CREATE INDEX IF NOT EXISTS idx_health_ts ON health_snapshots(timestamp);
             CREATE INDEX IF NOT EXISTS idx_sensor_ts ON sensor_readings(timestamp);
             CREATE INDEX IF NOT EXISTS idx_sensor_type ON sensor_readings(sensor_type);
@@ -478,14 +436,11 @@ class CerberusDB:
     # =================================================================
 
     def insert(self, table: str, data: dict[str, Any]) -> int:
-        """Insert a row. Returns the row ID."""
         if not data:
             raise DatabaseError("Cannot insert empty data")
-
         columns: str = ", ".join(data.keys())
         placeholders: str = ", ".join(["?"] * len(data))
         sql: str = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
-
         with self._transaction() as conn:
             cursor: sqlite3.Cursor = conn.execute(sql, list(data.values()))
             row_id: int = cursor.lastrowid or 0
@@ -493,14 +448,11 @@ class CerberusDB:
             return row_id
 
     def insert_many(self, table: str, rows: list[dict[str, Any]]) -> int:
-        """Bulk insert. All rows must have the same columns. Returns count."""
         if not rows:
             return 0
-
         columns: str = ", ".join(rows[0].keys())
         placeholders: str = ", ".join(["?"] * len(rows[0]))
         sql: str = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
-
         with self._transaction() as conn:
             conn.executemany(sql, [list(row.values()) for row in rows])
             count: int = len(rows)
@@ -508,10 +460,8 @@ class CerberusDB:
             return count
 
     def upsert(self, table: str, data: dict[str, Any], conflict_columns: list[str]) -> int:
-        """Insert or update on conflict. Returns row ID."""
         if not data:
             raise DatabaseError("Cannot upsert empty data")
-
         columns: str = ", ".join(data.keys())
         placeholders: str = ", ".join(["?"] * len(data))
         conflict: str = ", ".join(conflict_columns)
@@ -522,22 +472,14 @@ class CerberusDB:
             f"INSERT INTO {table} ({columns}) VALUES ({placeholders}) "
             f"ON CONFLICT({conflict}) DO UPDATE SET {updates}"
         )
-
         with self._transaction() as conn:
             cursor: sqlite3.Cursor = conn.execute(sql, list(data.values()))
             row_id: int = cursor.lastrowid or 0
             return row_id
 
-    def query(
-        self,
-        sql: str,
-        params: Optional[tuple[Any, ...]] = None,
-        limit: Optional[int] = None
-    ) -> list[dict[str, Any]]:
-        """Execute a SELECT query. Returns list of dicts."""
+    def query(self, sql: str, params: Optional[tuple[Any, ...]] = None, limit: Optional[int] = None) -> list[dict[str, Any]]:
         if limit is not None:
             sql = f"{sql} LIMIT {limit}"
-
         try:
             conn: sqlite3.Connection = self._get_connection()
             cursor: sqlite3.Cursor = conn.execute(sql, params or ())
@@ -546,17 +488,11 @@ class CerberusDB:
         except sqlite3.Error as e:
             raise DatabaseError(f"Query failed: {e}") from e
 
-    def query_one(
-        self,
-        sql: str,
-        params: Optional[tuple[Any, ...]] = None
-    ) -> Optional[dict[str, Any]]:
-        """Execute a SELECT query. Returns first result or None."""
+    def query_one(self, sql: str, params: Optional[tuple[Any, ...]] = None) -> Optional[dict[str, Any]]:
         results: list[dict[str, Any]] = self.query(sql, params, limit=1)
         return results[0] if results else None
 
     def execute(self, sql: str, params: Optional[tuple[Any, ...]] = None) -> int:
-        """Execute a non-SELECT statement. Returns affected row count."""
         with self._transaction() as conn:
             cursor: sqlite3.Cursor = conn.execute(sql, params or ())
             affected: int = cursor.rowcount
@@ -564,28 +500,20 @@ class CerberusDB:
             return affected
 
     def get_table_count(self, table: str) -> int:
-        """Get row count for a table."""
-        result: Optional[dict[str, Any]] = self.query_one(
-            f"SELECT COUNT(*) as count FROM {table}"
-        )
+        result: Optional[dict[str, Any]] = self.query_one(f"SELECT COUNT(*) as count FROM {table}")
         return result["count"] if result else 0
 
     # =================================================================
     # HEALTH
     # =================================================================
 
-    def log_health(self, data: dict[str, Any]) -> int:
-        """Insert a health snapshot."""
-        return self.insert("health_snapshots", data)
+    def log_health(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("health_snapshots", data or kwargs)
 
     def get_latest_health(self) -> Optional[dict[str, Any]]:
-        """Get the most recent health snapshot."""
-        return self.query_one(
-            "SELECT * FROM health_snapshots ORDER BY timestamp DESC"
-        )
+        return self.query_one("SELECT * FROM health_snapshots ORDER BY timestamp DESC")
 
     def get_health_history(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get health snapshots for the last N hours."""
         return self.query(
             "SELECT * FROM health_snapshots WHERE timestamp > datetime('now', ?) ORDER BY timestamp ASC",
             (f"-{hours} hours",)
@@ -595,27 +523,16 @@ class CerberusDB:
     # SENSOR READINGS
     # =================================================================
 
-    def log_sensor(self, data: dict[str, Any]) -> int:
-        """Insert a sensor reading."""
-        return self.insert("sensor_readings", data)
+    def log_sensor(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("sensor_readings", data or kwargs)
 
-    def log_sensor_reading(self, sensor_type: str, data: dict[str, Any]) -> int:
-        """Insert a sensor reading with type. Flattens nested data to metadata."""
-        row: dict[str, Any] = {"sensor_type": sensor_type}
-        known_cols: set[str] = {
-            "temperature_c", "humidity_pct", "pressure_hpa", "gas_resistance_ohms",
-            "voc_index", "co2_ppm", "heat_index_c", "dew_point_c", "comfort_level",
-            "gps_lat", "gps_lon"
-        }
-        for k, v in data.items():
-            if k in known_cols:
-                row[k] = v
+    def log_sensor_reading(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        if "sensor_type" not in row:
+            row["sensor_type"] = "unknown"
         return self.insert("sensor_readings", row)
 
-    def get_sensor_readings(
-        self, sensor_type: str, hours: int = 24
-    ) -> list[dict[str, Any]]:
-        """Get sensor readings by type for the last N hours."""
+    def get_sensor_readings(self, sensor_type: str, hours: int = 24) -> list[dict[str, Any]]:
         return self.query(
             "SELECT * FROM sensor_readings WHERE sensor_type = ? AND timestamp > datetime('now', ?) ORDER BY timestamp ASC",
             (sensor_type, f"-{hours} hours")
@@ -625,30 +542,30 @@ class CerberusDB:
     # AI DETECTIONS
     # =================================================================
 
-    def log_detection(self, data: dict[str, Any]) -> int:
-        """Insert an AI detection."""
-        if "metadata" in data and isinstance(data["metadata"], dict):
-            data["metadata"] = json.dumps(data["metadata"])
-        return self.insert("detections", data)
+    def log_detection(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        if "metadata" in row and isinstance(row["metadata"], dict):
+            row["metadata"] = json.dumps(row["metadata"])
+        return self.insert("detections", row)
 
-    def get_detections_since(self, since: str) -> list[dict[str, Any]]:
-        """Get all detections since a given ISO timestamp."""
+    def get_detections_since(self, since: str = None, hours: int = None) -> list[dict[str, Any]]:
+        if hours is not None:
+            return self.query(
+                "SELECT * FROM detections WHERE timestamp > datetime('now', ?) ORDER BY timestamp DESC",
+                (f"-{hours} hours",)
+            )
         return self.query(
             "SELECT * FROM detections WHERE timestamp > ? ORDER BY timestamp DESC",
             (since,)
         )
 
-    def get_detections_by_type(
-        self, detection_type: str, hours: int = 24
-    ) -> list[dict[str, Any]]:
-        """Get detections by type for the last N hours."""
+    def get_detections_by_type(self, detection_type: str, hours: int = 24) -> list[dict[str, Any]]:
         return self.query(
             "SELECT * FROM detections WHERE detection_type = ? AND timestamp > datetime('now', ?) ORDER BY timestamp DESC",
             (detection_type, f"-{hours} hours")
         )
 
     def get_detection_stats(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get detection counts grouped by type and label."""
         return self.query(
             "SELECT detection_type, label, COUNT(*) as count, AVG(confidence) as avg_confidence "
             "FROM detections WHERE timestamp > datetime('now', ?) "
@@ -657,22 +574,20 @@ class CerberusDB:
         )
 
     # =================================================================
-    # SPECIES SIGHTINGS (Bird Watcher)
+    # SPECIES SIGHTINGS
     # =================================================================
 
-    def log_sighting(self, data: dict[str, Any]) -> int:
-        """Insert a species sighting."""
-        row_id: int = self.insert("species_sightings", data)
-        self._update_species_catalog(data)
+    def log_sighting(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        row_id: int = self.insert("species_sightings", row)
+        self._update_species_catalog(row)
         return row_id
 
     def _update_species_catalog(self, sighting: dict[str, Any]) -> None:
-        """Update the species catalog with new sighting data."""
         species: str = sighting.get("species", "unknown")
         existing: Optional[dict[str, Any]] = self.query_one(
             "SELECT * FROM species_catalog WHERE species = ?", (species,)
         )
-
         if existing is None:
             self.insert("species_catalog", {
                 "species": species,
@@ -697,7 +612,6 @@ class CerberusDB:
                     updates["best_photo_path"] = sighting["photo_path"]
             if sighting.get("scientific_name") and not existing.get("scientific_name"):
                 updates["scientific_name"] = sighting["scientific_name"]
-
             set_clause: str = ", ".join(f"{k} = ?" for k in updates.keys())
             self.execute(
                 f"UPDATE species_catalog SET {set_clause} WHERE species = ?",
@@ -705,35 +619,29 @@ class CerberusDB:
             )
 
     def get_species_catalog(self) -> list[dict[str, Any]]:
-        """Get the full species catalog sorted by sighting count."""
-        return self.query(
-            "SELECT * FROM species_catalog ORDER BY sighting_count DESC"
-        )
+        return self.query("SELECT * FROM species_catalog ORDER BY sighting_count DESC")
 
-    def get_recent_sightings(self, count: int = 20) -> list[dict[str, Any]]:
-        """Get the most recent sightings."""
+    def get_recent_sightings(self, count: int = 20, limit: int = None) -> list[dict[str, Any]]:
         return self.query(
             "SELECT * FROM species_sightings ORDER BY timestamp DESC",
-            limit=count
+            limit=limit or count
         )
 
     # =================================================================
-    # PEST BEHAVIOR (Adaptive Learning)
+    # PEST BEHAVIOR
     # =================================================================
 
-    def update_pest_behavior(self, data: dict[str, Any]) -> int:
-        """Upsert pest behavior record for a species."""
-        if "effective_actions" in data and isinstance(data["effective_actions"], dict):
-            data["effective_actions"] = json.dumps(data["effective_actions"])
-        data["updated_at"] = "datetime('now')"
-        return self.upsert("pest_behavior", data, ["species"])
+    def update_pest_behavior(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        if "effective_actions" in row and isinstance(row["effective_actions"], (dict, list)):
+            row["effective_actions"] = json.dumps(row["effective_actions"])
+        row["updated_at"] = "datetime('now')"
+        return self.upsert("pest_behavior", row, ["species"])
 
-    def log_pest_event(self, data: dict[str, Any]) -> int:
-        """Insert a pest deterrent event."""
-        return self.insert("pest_events", data)
+    def log_pest_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("pest_events", data or kwargs)
 
     def get_pest_behavior(self, species: str) -> Optional[dict[str, Any]]:
-        """Get behavior profile for a specific pest species."""
         result: Optional[dict[str, Any]] = self.query_one(
             "SELECT * FROM pest_behavior WHERE species = ?", (species,)
         )
@@ -745,7 +653,6 @@ class CerberusDB:
         return result
 
     def get_all_pest_behaviors(self) -> list[dict[str, Any]]:
-        """Get all pest behavior profiles."""
         results: list[dict[str, Any]] = self.query(
             "SELECT * FROM pest_behavior ORDER BY encounters DESC"
         )
@@ -758,7 +665,6 @@ class CerberusDB:
         return results
 
     def get_pest_activity(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get pest events for the last N hours."""
         return self.query(
             "SELECT species, COUNT(*) as events, SUM(response_effective) as effective, "
             "AVG(confidence) as avg_confidence FROM pest_events "
@@ -770,12 +676,10 @@ class CerberusDB:
     # WEED DETECTIONS
     # =================================================================
 
-    def log_weed_detection(self, data: dict[str, Any]) -> int:
-        """Insert a weed detection with geotag."""
-        return self.insert("weed_detections", data)
+    def log_weed_detection(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("weed_detections", data or kwargs)
 
     def get_weed_hotspots(self, min_detections: int = 3) -> list[dict[str, Any]]:
-        """Get locations with recurring weed detections."""
         return self.query(
             "SELECT ROUND(gps_lat, 5) as lat_zone, ROUND(gps_lon, 5) as lon_zone, "
             "COUNT(*) as detection_count, AVG(confidence) as avg_confidence, "
@@ -786,7 +690,6 @@ class CerberusDB:
         )
 
     def get_unverified_weeds(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Get weed detections pending verification."""
         return self.query(
             "SELECT * FROM weed_detections WHERE verified = 0 ORDER BY confidence DESC",
             limit=limit
@@ -796,12 +699,10 @@ class CerberusDB:
     # SURVEILLANCE EVENTS
     # =================================================================
 
-    def log_surveillance_event(self, data: dict[str, Any]) -> int:
-        """Insert a surveillance event."""
-        return self.insert("surveillance_events", data)
+    def log_surveillance_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("surveillance_events", data or kwargs)
 
     def get_threat_history(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get surveillance events with medium+ threat level."""
         return self.query(
             "SELECT * FROM surveillance_events WHERE threat_level IN ('medium', 'high', 'critical') "
             "AND timestamp > datetime('now', ?) ORDER BY timestamp DESC",
@@ -809,7 +710,6 @@ class CerberusDB:
         )
 
     def get_motion_activity(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get motion activity summary by hour."""
         return self.query(
             "SELECT strftime('%Y-%m-%d %H:00', timestamp) as hour, COUNT(*) as events, "
             "AVG(motion_pct) as avg_motion_pct, MAX(threat_level) as max_threat "
@@ -822,25 +722,22 @@ class CerberusDB:
     # MICROCLIMATE
     # =================================================================
 
-    def log_microclimate_reading(self, data: dict[str, Any]) -> int:
-        """Insert a microclimate grid point reading."""
-        return self.insert("microclimate_readings", data)
+    def log_microclimate_reading(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("microclimate_readings", data or kwargs)
 
-    def log_microclimate_survey(self, data: dict[str, Any]) -> int:
-        """Insert or update a completed survey summary."""
-        if "heatmap_data" in data and isinstance(data["heatmap_data"], dict):
-            data["heatmap_data"] = json.dumps(data["heatmap_data"])
-        return self.upsert("microclimate_surveys", data, ["survey_name"])
+    def log_microclimate_survey(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        if "heatmap_data" in row and isinstance(row["heatmap_data"], dict):
+            row["heatmap_data"] = json.dumps(row["heatmap_data"])
+        return self.upsert("microclimate_surveys", row, ["survey_name"])
 
     def get_survey_readings(self, survey_name: str) -> list[dict[str, Any]]:
-        """Get all readings for a specific survey."""
         return self.query(
             "SELECT * FROM microclimate_readings WHERE survey_name = ? ORDER BY grid_row, grid_col",
             (survey_name,)
         )
 
     def get_survey_list(self) -> list[dict[str, Any]]:
-        """Get summary of all completed surveys."""
         return self.query(
             "SELECT survey_name, total_readings, duration_seconds, temp_min, temp_max, "
             "temp_avg, hotspot_count, coldspot_count, timestamp "
@@ -851,12 +748,10 @@ class CerberusDB:
     # NAVIGATION
     # =================================================================
 
-    def log_navigation_event(self, data: dict[str, Any]) -> int:
-        """Insert a navigation event."""
-        return self.insert("navigation_log", data)
+    def log_navigation_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("navigation_log", data or kwargs)
 
     def get_navigation_history(self, hours: int = 24) -> list[dict[str, Any]]:
-        """Get navigation events for the last N hours."""
         return self.query(
             "SELECT * FROM navigation_log WHERE timestamp > datetime('now', ?) ORDER BY timestamp ASC",
             (f"-{hours} hours",)
@@ -866,16 +761,13 @@ class CerberusDB:
     # MISSIONS
     # =================================================================
 
-    def log_mission_event(self, data: dict[str, Any]) -> int:
-        """Insert a mission lifecycle event."""
-        if "metadata" in data and isinstance(data["metadata"], dict):
-            data["metadata"] = json.dumps(data["metadata"])
-        return self.insert("mission_events", data)
+    def log_mission_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        row: dict[str, Any] = data or kwargs
+        if "metadata" in row and isinstance(row["metadata"], dict):
+            row["metadata"] = json.dumps(row["metadata"])
+        return self.insert("mission_events", row)
 
-    def get_mission_history(
-        self, mission_id: Optional[str] = None, limit: int = 50
-    ) -> list[dict[str, Any]]:
-        """Get mission events, optionally filtered by mission ID."""
+    def get_mission_history(self, mission_id: Optional[str] = None, hours: int = None, limit: int = 50) -> list[dict[str, Any]]:
         if mission_id:
             return self.query(
                 "SELECT * FROM mission_events WHERE mission_id = ? ORDER BY timestamp ASC",
@@ -889,12 +781,10 @@ class CerberusDB:
     # PATROL
     # =================================================================
 
-    def log_patrol_event(self, data: dict[str, Any]) -> int:
-        """Insert a patrol log entry."""
-        return self.insert("patrol_log", data)
+    def log_patrol_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("patrol_log", data or kwargs)
 
     def get_patrol_history(self, route_name: Optional[str] = None, hours: int = 24) -> list[dict[str, Any]]:
-        """Get patrol events, optionally filtered by route."""
         if route_name:
             return self.query(
                 "SELECT * FROM patrol_log WHERE route_name = ? AND timestamp > datetime('now', ?) ORDER BY timestamp ASC",
@@ -906,13 +796,12 @@ class CerberusDB:
         )
 
     # =================================================================
-    # OCCUPANCY GRID (Path Planning)
+    # OCCUPANCY GRID
     # =================================================================
 
-    def update_grid_cell(self, grid_x: int, grid_y: int, state: str,
+    def update_grid_cell(self, grid_x: int = None, grid_y: int = None, state: str = "unknown",
                          confidence: float = 1.0, gps_lat: float = 0.0,
-                         gps_lon: float = 0.0) -> int:
-        """Insert or update an occupancy grid cell."""
+                         gps_lon: float = 0.0, **kwargs: Any) -> int:
         return self.upsert("occupancy_grid", {
             "grid_x": grid_x,
             "grid_y": grid_y,
@@ -924,7 +813,6 @@ class CerberusDB:
         }, ["grid_x", "grid_y"])
 
     def increment_grid_observation(self, grid_x: int, grid_y: int) -> int:
-        """Increment observation count for a grid cell."""
         return self.execute(
             "UPDATE occupancy_grid SET observation_count = observation_count + 1, "
             "last_observed = datetime('now') WHERE grid_x = ? AND grid_y = ?",
@@ -932,19 +820,14 @@ class CerberusDB:
         )
 
     def get_occupancy_grid(self) -> list[dict[str, Any]]:
-        """Get the full occupancy grid."""
-        return self.query(
-            "SELECT * FROM occupancy_grid ORDER BY grid_x, grid_y"
-        )
+        return self.query("SELECT * FROM occupancy_grid ORDER BY grid_x, grid_y")
 
     def get_obstacles(self) -> list[dict[str, Any]]:
-        """Get all cells marked as occupied/obstacle."""
         return self.query(
             "SELECT * FROM occupancy_grid WHERE state = 'occupied' ORDER BY last_observed DESC"
         )
 
     def clear_stale_obstacles(self, days: int = 7) -> int:
-        """Clear obstacles not observed recently (environment may have changed)."""
         return self.execute(
             "UPDATE occupancy_grid SET state = 'unknown', confidence = 0.0 "
             "WHERE state = 'occupied' AND last_observed < datetime('now', ?)",
@@ -955,12 +838,10 @@ class CerberusDB:
     # RTB EVENTS
     # =================================================================
 
-    def log_rtb_event(self, data: dict[str, Any]) -> int:
-        """Insert a return-to-base event."""
-        return self.insert("rtb_events", data)
+    def log_rtb_event(self, data: dict[str, Any] = None, **kwargs: Any) -> int:
+        return self.insert("rtb_events", data or kwargs)
 
-    def get_rtb_history(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Get recent RTB events."""
+    def get_rtb_history(self, hours: int = None, limit: int = 20) -> list[dict[str, Any]]:
         return self.query(
             "SELECT * FROM rtb_events ORDER BY timestamp DESC", limit=limit
         )
@@ -969,29 +850,24 @@ class CerberusDB:
     # SYSTEM EVENTS
     # =================================================================
 
-    def log_system_event(
-        self,
-        event_type: str,
-        source: str,
-        message: str,
-        severity: str = "INFO",
-        metadata: Optional[str] = None
-    ) -> int:
-        """Insert a system event."""
-        if metadata is not None and isinstance(metadata, dict):
-            metadata = json.dumps(metadata)
-        return self.insert("system_events", {
-            "event_type": event_type,
-            "source": source,
-            "message": message,
-            "severity": severity,
-            "metadata": metadata
-        })
+    def log_system_event(self, data: dict[str, Any] = None, event_type: str = None,
+                         source: str = None, message: str = None,
+                         severity: str = "INFO", metadata: Any = None, **kwargs: Any) -> int:
+        if data is not None:
+            row = data
+        elif event_type is not None:
+            row = {
+                "event_type": event_type,
+                "source": source or "",
+                "message": message or "",
+                "severity": severity,
+                "metadata": json.dumps(metadata) if isinstance(metadata, dict) else metadata
+            }
+        else:
+            row = kwargs
+        return self.insert("system_events", row)
 
-    def get_system_events(
-        self, severity: Optional[str] = None, hours: int = 24
-    ) -> list[dict[str, Any]]:
-        """Get system events, optionally filtered by severity."""
+    def get_system_events(self, severity: Optional[str] = None, hours: int = 24) -> list[dict[str, Any]]:
         if severity:
             return self.query(
                 "SELECT * FROM system_events WHERE severity = ? AND timestamp > datetime('now', ?) ORDER BY timestamp DESC",
@@ -1003,26 +879,31 @@ class CerberusDB:
         )
 
     # =================================================================
-    # CONFIDENCE TRACKING (Model Calibration)
+    # CONFIDENCE TRACKING
     # =================================================================
 
-    def log_confidence(self, model_name: str, label: str, confidence: float) -> int:
-        """Log a model prediction for later verification."""
-        return self.insert("confidence_tracking", {
-            "model_name": model_name,
-            "label": label,
-            "predicted_confidence": confidence
-        })
+    def log_confidence(self, data: dict[str, Any] = None, model_name: str = None,
+                       label: str = None, predicted_confidence: float = None,
+                       confidence: float = None, **kwargs: Any) -> int:
+        if data is not None:
+            row = data
+        elif model_name is not None:
+            row = {
+                "model_name": model_name,
+                "label": label or "",
+                "predicted_confidence": predicted_confidence or confidence or 0.0
+            }
+        else:
+            row = kwargs
+        return self.insert("confidence_tracking", row)
 
     def verify_prediction(self, tracking_id: int, correct: bool, notes: str = "") -> int:
-        """Mark a prediction as verified correct or incorrect."""
         return self.execute(
             "UPDATE confidence_tracking SET verified = 1, correct = ?, notes = ? WHERE id = ?",
             (1 if correct else 0, notes, tracking_id)
         )
 
     def get_model_accuracy(self, model_name: str) -> Optional[dict[str, Any]]:
-        """Get accuracy stats for a model based on verified predictions."""
         return self.query_one(
             "SELECT model_name, COUNT(*) as total_verified, "
             "SUM(correct) as correct_count, "
@@ -1032,21 +913,28 @@ class CerberusDB:
             (model_name,)
         )
 
-    def get_false_positive_rate(self, model_name: str, label: str) -> Optional[dict[str, Any]]:
-        """Get false positive rate for a specific model + label combo."""
-        return self.query_one(
-            "SELECT label, COUNT(*) as total, SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as false_positives, "
-            "ROUND(CAST(SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) AS REAL) / COUNT(*) * 100, 1) as fp_rate_pct "
-            "FROM confidence_tracking WHERE model_name = ? AND label = ? AND verified = 1",
-            (model_name, label)
+    def get_false_positive_rate(self, model_name: str, label: str = None) -> Any:
+        if label:
+            result = self.query_one(
+                "SELECT label, COUNT(*) as total, SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as false_positives, "
+                "ROUND(CAST(SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) AS REAL) / COUNT(*) * 100, 1) as fp_rate_pct "
+                "FROM confidence_tracking WHERE model_name = ? AND label = ? AND verified = 1",
+                (model_name, label)
+            )
+            return result
+        result = self.query_one(
+            "SELECT COUNT(*) as total, SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) as false_positives, "
+            "ROUND(CAST(SUM(CASE WHEN correct = 0 THEN 1 ELSE 0 END) AS REAL) / COUNT(*), 2) as fp_rate "
+            "FROM confidence_tracking WHERE model_name = ? AND verified = 1",
+            (model_name,)
         )
+        return result["fp_rate"] if result else 0.0
 
     # =================================================================
     # MAINTENANCE
     # =================================================================
 
     def purge_old_records(self, table: str, days: Optional[int] = None) -> int:
-        """Delete records older than the specified number of days."""
         if days is None:
             days = self._max_log_age_days
         return self.execute(
@@ -1054,7 +942,6 @@ class CerberusDB:
         )
 
     def purge_all_old_records(self, days: Optional[int] = None) -> dict[str, int]:
-        """Purge old records from all time-series tables. Returns counts per table."""
         tables: list[str] = [
             "health_snapshots", "sensor_readings", "detections",
             "species_sightings", "pest_events", "weed_detections",
@@ -1074,7 +961,6 @@ class CerberusDB:
         return results
 
     def get_database_stats(self) -> dict[str, Any]:
-        """Get row counts and database file size for all tables."""
         tables: list[str] = [
             "health_snapshots", "sensor_readings", "detections",
             "species_sightings", "species_catalog", "pest_behavior",
@@ -1084,23 +970,20 @@ class CerberusDB:
             "occupancy_grid", "rtb_events", "system_events",
             "confidence_tracking"
         ]
-        stats: dict[str, Any] = {"tables": {}}
+        stats: dict[str, Any] = {}
         for table in tables:
             try:
-                stats["tables"][table] = self.get_table_count(table)
+                stats[table] = self.get_table_count(table)
             except DatabaseError:
-                stats["tables"][table] = -1
-
+                stats[table] = -1
         try:
             stats["file_size_mb"] = round(os.path.getsize(self._db_path) / (1024 * 1024), 2)
         except OSError:
             stats["file_size_mb"] = 0.0
-
-        stats["total_rows"] = sum(v for v in stats["tables"].values() if v > 0)
+        stats["total_rows"] = sum(v for v in stats.values() if isinstance(v, int) and v > 0)
         return stats
 
     def vacuum(self) -> None:
-        """Reclaim disk space. Run during maintenance windows only."""
         try:
             conn: sqlite3.Connection = self._get_connection()
             conn.execute("VACUUM")
@@ -1113,7 +996,6 @@ class CerberusDB:
     # =================================================================
 
     def close(self) -> None:
-        """Close the current thread's database connection."""
         conn: Optional[sqlite3.Connection] = getattr(self._local, "connection", None)
         if conn is not None:
             try:
@@ -1124,13 +1006,11 @@ class CerberusDB:
                 logger.error("Error closing database connection: %s", e)
 
     def close_all(self) -> None:
-        """Close current thread connection. Called during shutdown."""
         self.close()
         logger.info("Database shutdown complete")
 
     @classmethod
     def reset(cls) -> None:
-        """Reset singleton for testing. Not for production use."""
         if cls._instance is not None:
             cls._instance.close()
         cls._instance = None
