@@ -98,8 +98,8 @@ class ConfigValidator:
             config = CerberusConfig()
         self._config: CerberusConfig = config
         self._result: ValidationResult = ValidationResult()
-        self._used_gpio: dict[int, str] = {}
-        self._used_i2c: dict[int, str] = {}
+        self._used_gpio: dict[int, list[str]] = {}
+        self._used_i2c: dict[int, list[str]] = {}
 
     def validate(self) -> ValidationResult:
         """Run all validation checks. Returns the complete result."""
@@ -204,7 +204,7 @@ class ConfigValidator:
         if pin not in self.VALID_GPIO_PINS:
             self._result.add_error(path, f"Invalid GPIO pin number", pin)
             return
-        self._used_gpio.setdefault(pin, path)
+        self._used_gpio.setdefault(pin, []).append(path)
 
     def _register_i2c(self, path: str, address: Any) -> None:
         """Register an I2C address for conflict detection."""
@@ -219,32 +219,24 @@ class ConfigValidator:
         if address not in self.VALID_I2C_ADDRESSES:
             self._result.add_error(path, "I2C address out of valid range (0x03-0x77)", hex(address))
             return
-        self._used_i2c.setdefault(address, path)
+        self._used_i2c.setdefault(address, []).append(path)
 
     def _check_gpio_conflicts(self) -> None:
         """Check for GPIO pins assigned to multiple functions."""
-        pin_users: dict[int, list[str]] = {}
-        for pin, path in self._used_gpio.items():
-            pin_users.setdefault(pin, []).append(path)
-
-        for pin, users in pin_users.items():
+        for pin, users in self._used_gpio.items():
             if len(users) > 1:
                 self._result.add_error(
                     "gpio_conflicts",
-                    f"GPIO {pin} assigned to multiple functions: {', '.join(users)}"
+                    f"GPIO {pin} conflict — assigned to: {', '.join(users)}"
                 )
 
     def _check_i2c_conflicts(self) -> None:
         """Check for I2C addresses assigned to multiple devices."""
-        addr_users: dict[int, list[str]] = {}
-        for addr, path in self._used_i2c.items():
-            addr_users.setdefault(addr, []).append(path)
-
-        for addr, users in addr_users.items():
+        for addr, users in self._used_i2c.items():
             if len(users) > 1:
                 self._result.add_error(
                     "i2c_conflicts",
-                    f"I2C address {hex(addr)} assigned to multiple devices: {', '.join(users)}"
+                    f"I2C {hex(addr)} conflict — assigned to: {', '.join(users)}"
                 )
 
     def _validate_system(self) -> None:
@@ -301,14 +293,14 @@ class ConfigValidator:
             self._check_range("health.cpu_warn_pct", cpu_warn, 1, 100)
             self._check_range("health.cpu_critical_pct", cpu_crit, 1, 100)
             if cpu_warn >= cpu_crit:
-                self._result.add_error("health", "cpu_warn_pct must be less than cpu_critical_pct")
+                self._result.add_error("health.cpu_thresholds", "cpu_warn_pct must be less than cpu_critical_pct")
 
         temp_warn: Any = self._get("health", "temp_warn_c")
         temp_crit: Any = self._get("health", "temp_critical_c")
         temp_shut: Any = self._get("health", "temp_shutdown_c")
         if temp_warn and temp_crit and temp_shut:
-            if not (temp_warn < temp_crit < temp_shut):
-                self._result.add_error("health", "Temperature thresholds must be: warn < critical < shutdown")
+           if not (temp_warn < temp_crit < temp_shut):
+                self._result.add_error("health.temp_thresholds", "Temperature thresholds must be: warn < critical < shutdown")
 
     def _validate_safety(self) -> None:
         """Validate safety watchdog thresholds."""
@@ -317,16 +309,16 @@ class ConfigValidator:
         batt_shut: Any = self._get("safety", "battery_shutdown_pct")
 
         if batt_warn and batt_crit and batt_shut:
-            if not (batt_shut < batt_crit < batt_warn):
-                self._result.add_error("safety", "Battery thresholds must be: shutdown < critical < warn")
+           if not (batt_shut < batt_crit < batt_warn):
+                self._result.add_error("safety.battery_thresholds", "Battery thresholds must be: shutdown < critical < warn")
 
         thermal_warn: Any = self._get("safety", "thermal_warn_c")
         thermal_crit: Any = self._get("safety", "thermal_critical_c")
         thermal_shut: Any = self._get("safety", "thermal_shutdown_c")
 
         if thermal_warn and thermal_crit and thermal_shut:
-            if not (thermal_warn < thermal_crit < thermal_shut):
-                self._result.add_error("safety", "Thermal thresholds must be: warn < critical < shutdown")
+           if not (thermal_warn < thermal_crit < thermal_shut):
+                self._result.add_error("safety.thermal_thresholds", "Thermal thresholds must be: warn < critical < shutdown")
 
         overcurrent: Any = self._get("safety", "motor_overcurrent_a")
         if overcurrent is not None:

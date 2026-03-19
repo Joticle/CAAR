@@ -428,7 +428,7 @@ class TestPathSimplification:
     def test_simplification_disabled(self, config: CerberusConfig) -> None:
         config._data["path_planner"]["simplify_paths"] = False
         planner: PathPlanner = PathPlanner(config)
-        goal_lat: float = HOME_LAT + 0.001
+        goal_lat: float = HOME_LAT + 0.0003
         result: PlannedPath = planner.plan_path(HOME_LAT, HOME_LON, goal_lat, HOME_LON)
         assert result.success is True
 

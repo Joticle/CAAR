@@ -283,7 +283,7 @@ class TestGPIOConflictDetection:
 
     def test_motor_led_pin_conflict(self, config: CerberusConfig) -> None:
         config._data["motors"]["left"]["pwm_pin"] = 18
-        config._data["status_leds"]["pin"] = 18
+        config._data["leds"]["status"] = {"pin": 18, "count": 12, "brightness": 0.3, "order": "GRB"}
         validator: ConfigValidator = ConfigValidator(config)
         result: ValidationResult = validator.validate()
         has_conflict: bool = any(

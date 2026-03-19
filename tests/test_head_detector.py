@@ -263,7 +263,7 @@ class TestGPIODetection:
                 dev.close = MagicMock()
                 mock_devices.append(dev)
 
-            with patch("cerberus.heads.head_detector.InputDevice", side_effect=mock_devices):
+            with patch("gpiozero.InputDevice", side_effect=mock_devices):
                 result: HeadDetectionResult = detector._detect_from_gpio()
                 assert result.head_type == expected_type, (
                     f"Combo {combo} expected {expected_type} got {result.head_type}"

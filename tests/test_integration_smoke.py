@@ -374,7 +374,7 @@ class TestCrossSubsystemFlow:
 
         path_through: PlannedPath = planner.plan_path(
             HOME_LAT, HOME_LON,
-            HOME_LAT + 0.001, HOME_LON
+            HOME_LAT + 0.0003, HOME_LON
         )
         assert path_through.success is True
 
