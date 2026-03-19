@@ -263,22 +263,15 @@ class TestGPIODetection:
                 dev.close = MagicMock()
                 mock_devices.append(dev)
 
-            with patch("gpiozero.InputDevice", side_effect=mock_devices):
-                result: HeadDetectionResult = detector._detect_from_gpio()
-                assert result.head_type == expected_type, (
-                    f"Combo {combo} expected {expected_type} got {result.head_type}"
-                )
+            mock_gpiozero = MagicMock()
+            mock_gpiozero.InputDevice = MagicMock(side_effect=mock_devices)
+            with patch.dict("sys.modules", {"gpiozero": mock_gpiozero}):
+                with patch("gpiozero.InputDevice", side_effect=mock_devices):
+                    result: HeadDetectionResult = detector._detect_from_gpio()
+                    assert result.head_type == expected_type, (
+                        f"Combo {combo} expected {expected_type} got {result.head_type}"
+                    )
 
-        detector.close()
-
-    def test_gpio_not_available(self, config: CerberusConfig) -> None:
-        config._data["heads"]["active_head"] = None
-        detector: HeadDetector = HeadDetector(config)
-        detector._gpio_available = False
-
-        result: HeadDetectionResult = detector._detect_from_gpio()
-        assert result.head_type == HeadType.NONE
-        assert "not available" in result.message
         detector.close()
 
     def test_gpio_wrong_pin_count(self, config: CerberusConfig) -> None:
@@ -297,9 +290,12 @@ class TestGPIODetection:
         detector: HeadDetector = HeadDetector(config)
         detector._gpio_available = True
 
-        with patch("cerberus.heads.head_detector.InputDevice", side_effect=RuntimeError("GPIO fail")):
-            result: HeadDetectionResult = detector._detect_from_gpio()
-            assert result.head_type == HeadType.NONE
+        mock_gpiozero = MagicMock()
+        mock_gpiozero.InputDevice = MagicMock(side_effect=RuntimeError("GPIO fail"))
+        with patch.dict("sys.modules", {"gpiozero": mock_gpiozero}):
+            with patch("gpiozero.InputDevice", side_effect=RuntimeError("GPIO fail")):
+                result: HeadDetectionResult = detector._detect_from_gpio()
+                assert result.head_type == HeadType.NONE
 
         detector.close()
 

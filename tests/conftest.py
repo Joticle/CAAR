@@ -102,7 +102,7 @@ MINIMAL_CONFIG: dict[str, Any] = {
         "emergency_stop_pin": 25
     },
     "servos": {
-        "i2c_address": "0x40",
+        "i2c_address": "0x41",
         "frequency_hz": 50,
         "channels": {
             "pan": {"channel": 0, "min_pulse_us": 500, "max_pulse_us": 2500},

@@ -97,8 +97,11 @@ class TestSystemValidation:
         config._data["system"]["log_level"] = "VERBOSE"
         validator: ConfigValidator = ConfigValidator(config)
         result: ValidationResult = validator.validate()
-        errors: list[str] = [i.message for i in result.issues if i.severity == Severity.ERROR]
-        assert any("log_level" in e.lower() or "VERBOSE" in e for e in errors)
+        has_issue: bool = any(
+            "log_level" in i.path and i.severity == Severity.ERROR
+            for i in result.issues
+        )
+        assert has_issue
 
     def test_invalid_environment(self, config: CerberusConfig) -> None:
         config._data["system"]["environment"] = "staging"
